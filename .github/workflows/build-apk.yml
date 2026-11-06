@@ -14,15 +14,19 @@ jobs:
       - name: Kaynak kodu al
         uses: actions/checkout@v4
 
-      - name: GitHub'a yüklenen güncel ZIP'i hazırla
+      - name: ZIP dosyasını doğrula ve çıkar
         run: |
-          test -f "siparis_takip_pwa (1).zip"
+          test -f siparis_takip_pwa.zip
+          echo "Kaynak ZIP SHA256:"
+          sha256sum siparis_takip_pwa.zip
           rm -rf app/src/main/assets
           mkdir -p app/src/main/assets
-          unzip -o "siparis_takip_pwa (1).zip" -d app/src/main/assets
+          unzip -o siparis_takip_pwa.zip -d app/src/main/assets
           test -s app/src/main/assets/index.html
           test -s app/src/main/assets/manifest.json
           test -s app/src/main/assets/sw.js
+          echo "Paketlenen PWA dosyaları:"
+          find app/src/main/assets -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
 
       - name: Java 17 kur
         uses: actions/setup-java@v4
@@ -52,6 +56,11 @@ jobs:
           unzip -l "$APK" | grep -q "assets/index.html"
           unzip -l "$APK" | grep -q "assets/manifest.json"
           unzip -l "$APK" | grep -q "assets/sw.js"
+          mkdir -p verify
+          unzip -p "$APK" assets/index.html | sha256sum
+          sha256sum app/src/main/assets/index.html
+          unzip -p "$APK" assets/manifest.json | sha256sum
+          sha256sum app/src/main/assets/manifest.json
 
       - name: APK dosyasını sakla
         uses: actions/upload-artifact@v4

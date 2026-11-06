@@ -203,10 +203,10 @@ async function render(){
  let list=(await all()).filter(o=>[o.customer,o.brand,o.model,o.vehicle,o.notes,...(o.items||[]).map(i=>i.category+' '+(i.name||''))].join(' ').toLocaleLowerCase('tr').includes(q));
  if(recentOnly)list=list.slice(0,5);
  $('recentBtn').textContent=recentOnly?'← Tüm Siparişler':'🕘 Son Siparişler';
- $('orders').innerHTML=list.length?list.map(o=>`<article class="order" data-id="${esc(o.id)}" style="--s:${STCOL[o.status]||'#cbd5e1'}"><div class="orderhead"><div><h3>${esc(o.customer||'İsimsiz müşteri')}</h3>${vehicleText(o)?`<div class="muted">${esc(vehicleText(o))}</div>`:''}<div class="muted">${esc(formatDate(o.date))}</div></div><span class="status ${o.status==='Teslim edildi'?'done':o.status==='İade'?'ret':''}">${esc(o.status)}</span></div><div style="margin-top:4px">${summary(o)}</div></article>`).join(''):`<div class="empty">${q?'Aramana uygun kayıt yok.':'Henüz kayıt yok. Yukarıdan ilk kaydı ekleyebilirsin.'}</div>`;
+ $('orders').innerHTML=list.length?list.map(o=>`<article class="order" data-id="${esc(o.id)}" style="--s:${STCOL[o.status]||'#cbd5e1'}"><div class="orderhead"><div><h3>${esc(o.customer||'İsimsiz müşteri')}</h3>${vehicleText(o)?`<div class="muted">${esc(vehicleText(o))}</div>`:''}<div class="muted">${esc(formatDate(o.date))}</div></div><span class="status ${o.status==='Teslim edildi'?'done':o.status==='İade'?'ret':''}">${esc(o.status)}</span></div><div style="margin-top:4px">${summary(o)}</div><div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="secondary sm" type="button" data-share="${esc(o.id)}">↗ Paylaş</button></div></article>`).join(''):`<div class="empty">${q?'Aramana uygun kayıt yok.':'Henüz kayıt yok. Yukarıdan ilk kaydı ekleyebilirsin.'}</div>`;
 }
 async function goList(){show('vList');await render()}
-$('orders').onclick=e=>{const a=e.target.closest('.order');if(a)openDetail(a.dataset.id)};
+$('orders').onclick=e=>{const s=e.target.closest('[data-share]');if(s){e.stopPropagation();get(s.dataset.share).then(o=>{if(o)shareOrder(o)});return}const a=e.target.closest('.order');if(a)openDetail(a.dataset.id)};
 $('search').oninput=render;
 $('recentBtn').onclick=async()=>{recentOnly=!recentOnly;$('search').value='';await render()};
 

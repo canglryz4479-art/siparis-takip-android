@@ -12,6 +12,12 @@ jobs:
     steps:
       - name: Kaynak kodu al
         uses: actions/checkout@v4
+      - name: ZIP içindeki orijinal PWA dosyalarını çıkar
+        run: |
+          test -f siparis_takip_pwa.zip
+          mkdir -p app/src/main/assets
+          unzip -o siparis_takip_pwa.zip -d app/src/main/assets
+          test -s app/src/main/assets/index.html
       - name: Java 17 kur
         uses: actions/setup-java@v4
         with:

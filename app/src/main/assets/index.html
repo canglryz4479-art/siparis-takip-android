@@ -97,6 +97,7 @@ label{color:#3f3f46}
 <main id="vList">
 <button class="primary" id="newBtn">＋ Yeni müşteri kaydı</button>
 <button class="secondary" id="custBtn" type="button" style="width:100%;margin-top:8px">👥 Müşteriler</button>
+<button class="secondary" id="recentBtn" type="button" style="width:100%;margin-top:8px">🕘 Son Siparişler</button>
 <section class="panel"><input id="search" type="search" placeholder="Müşteri veya ürün ara...">
 <div id="orders"></div></section>
 <section class="panel"><h2>Yedekleme</h2>
@@ -196,20 +197,32 @@ async function migrate(){
 /* ---- Liste ---- */
 const vehicleText=o=>[o.brand,o.model].filter(Boolean).join(' ');
 const summary=o=>(o.items||[]).map(i=>`<span class="tag" style="--c:${CCOL[i.category]||'#64748b'}">${i.qty} ${esc(i.category)}${i.name?' · '+esc(i.name):''}</span>`).join('')||'<span class="muted">Ürün yok</span>';
+let recentOnly=false;
 async function render(){
  const q=$('search').value.toLocaleLowerCase('tr').trim();
- const list=(await all()).filter(o=>[o.customer,o.brand,o.model,o.vehicle,o.notes,...(o.items||[]).map(i=>i.category+' '+(i.name||''))].join(' ').toLocaleLowerCase('tr').includes(q));
+ let list=(await all()).filter(o=>[o.customer,o.brand,o.model,o.vehicle,o.notes,...(o.items||[]).map(i=>i.category+' '+(i.name||''))].join(' ').toLocaleLowerCase('tr').includes(q));
+ if(recentOnly)list=list.slice(0,5);
+ $('recentBtn').textContent=recentOnly?'← Tüm Siparişler':'🕘 Son Siparişler';
  $('orders').innerHTML=list.length?list.map(o=>`<article class="order" data-id="${esc(o.id)}" style="--s:${STCOL[o.status]||'#cbd5e1'}"><div class="orderhead"><div><h3>${esc(o.customer||'İsimsiz müşteri')}</h3>${vehicleText(o)?`<div class="muted">${esc(vehicleText(o))}</div>`:''}<div class="muted">${esc(formatDate(o.date))}</div></div><span class="status ${o.status==='Teslim edildi'?'done':o.status==='İade'?'ret':''}">${esc(o.status)}</span></div><div style="margin-top:4px">${summary(o)}</div></article>`).join(''):`<div class="empty">${q?'Aramana uygun kayıt yok.':'Henüz kayıt yok. Yukarıdan ilk kaydı ekleyebilirsin.'}</div>`;
 }
 async function goList(){show('vList');await render()}
 $('orders').onclick=e=>{const a=e.target.closest('.order');if(a)openDetail(a.dataset.id)};
 $('search').oninput=render;
+$('recentBtn').onclick=async()=>{recentOnly=!recentOnly;$('search').value='';await render()};
 
 /* ---- Detay ---- */
+function shareOrder(o){
+ const lines=[`Sipariş: ${o.customer||'İsimsiz müşteri'}`,vehicleText(o)?`Araç: ${vehicleText(o)}`:'',`Tarih: ${formatDate(o.date)}`,`Durum: ${o.status||'Belirtilmedi'}`,'','Ürünler:',...(o.items||[]).map(i=>`• ${i.category}${i.name?' - '+i.name:''}: ${i.qty} adet`),o.notes?`Not: ${o.notes}`:''].filter(Boolean);
+ const text=lines.join('\n');
+ try{if(window.AndroidShare&&AndroidShare.share){AndroidShare.share(text);return}}catch(e){}
+ if(navigator.share){navigator.share({title:'Sipariş bilgisi',text}).catch(()=>{})}
+ else if(navigator.clipboard){navigator.clipboard.writeText(text).then(()=>toast('Sipariş bilgisi kopyalandı')).catch(()=>toast('Paylaşım açılamadı'))}
+ else toast('Paylaşım bu cihazda desteklenmiyor');
+}
 async function openDetail(id){
  const o=await get(id);if(!o)return goList();
- $('vDetail').innerHTML=`<button class="secondary" id="back" type="button">← Listeye dön</button><section class="panel"><div class="orderhead"><div><h2 style="margin-bottom:4px">${esc(o.customer||'İsimsiz müşteri')}</h2>${vehicleText(o)?`<div class="muted">${esc(vehicleText(o))}</div>`:''}<div class="muted">${esc(formatDate(o.date))}</div></div><span class="status ${o.status==='Teslim edildi'?'done':o.status==='İade'?'ret':''}">${esc(o.status)}</span></div><div style="margin-top:10px">${(o.items||[]).map(i=>`<div class="itemline" style="--c:${CCOL[i.category]||'#64748b'}"><div><b class="catname">${esc(i.category)}</b>${i.name?`<br>${esc(i.name)}`:''}<br><span class="muted">${i.qty} adet</span></div>${i.photo?`<img class="dphoto" src="${i.photo}" alt="${esc(i.category)}">`:'<span class="muted">Fotoğraf yok</span>'}</div>`).join('')||'<p class="muted">Ürün eklenmemiş.</p>'}</div>${o.notes?`<p class="muted" style="margin-top:10px">Not: ${esc(o.notes)}</p>`:''}<div class="actions"><button class="secondary" id="ed" type="button">Düzenle</button><button class="danger" id="dl" type="button">Sil</button></div></section>`;
- $('back').onclick=goList;$('ed').onclick=()=>openForm(o);
+ $('vDetail').innerHTML=`<button class="secondary" id="back" type="button">← Listeye dön</button><section class="panel"><div class="orderhead"><div><h2 style="margin-bottom:4px">${esc(o.customer||'İsimsiz müşteri')}</h2>${vehicleText(o)?`<div class="muted">${esc(vehicleText(o))}</div>`:''}<div class="muted">${esc(formatDate(o.date))}</div></div><span class="status ${o.status==='Teslim edildi'?'done':o.status==='İade'?'ret':''}">${esc(o.status)}</span></div><div style="margin-top:10px">${(o.items||[]).map(i=>`<div class="itemline" style="--c:${CCOL[i.category]||'#64748b'}"><div><b class="catname">${esc(i.category)}</b>${i.name?`<br>${esc(i.name)}`:''}<br><span class="muted">${i.qty} adet</span></div>${i.photo?`<img class="dphoto" src="${i.photo}" alt="${esc(i.category)}">`:'<span class="muted">Fotoğraf yok</span>'}</div>`).join('')||'<p class="muted">Ürün eklenmemiş.</p>'}</div>${o.notes?`<p class="muted" style="margin-top:10px">Not: ${esc(o.notes)}</p>`:''}<div class="actions"><button class="secondary" id="sh" type="button">↗ Paylaş</button><button class="secondary" id="ed" type="button">Düzenle</button><button class="danger" id="dl" type="button">Sil</button></div></section>`;
+ $('back').onclick=goList;$('sh').onclick=()=>shareOrder(o);$('ed').onclick=()=>openForm(o);
  $('dl').onclick=async()=>{if(confirm('Bu müşteri kaydı silinsin mi? Bu işlem geri alınamaz.')){await del(id);toast('Kayıt silindi');goList()}};
  show('vDetail');
 }
@@ -218,7 +231,7 @@ async function openDetail(id){
 const newItem=()=>({uid:uid(),category:CATS[0],name:'',qty:1,photo:null});
 function updateWeekday(){const v=$('date').value;$('weekday').textContent=v?'Gün: '+formatDate(v).split(' · ')[1]:''}
 function renderItems(){
- $('items').innerHTML=items.map((it,i)=>`<div class="item" data-u="${it.uid}" style="--c:${CCOL[it.category]||'#64748b'}"><div class="ihead"><b>Ürün ${i+1}</b><button type="button" class="danger sm" data-a="rm">Ürünü sil</button></div><select data-a="cat">${CATS.map(c=>`<option${c===it.category?' selected':''}>${c}</option>`).join('')}</select><input type="text" data-a="name" class="iname" value="${esc(it.name||'')}" placeholder="Hangi ürün? Örn. Megane 4 sol far"><div class="qty"><button type="button" data-a="dec" aria-label="Azalt">−</button><span>${it.qty}</span><button type="button" data-a="inc" aria-label="Artır">+</button><small>adet</small></div><label class="photo">📷 ${it.photo?'Fotoğrafı değiştir':'Fotoğraf ekle'}<input type="file" accept="image/*" hidden data-a="ph"></label>${it.photo?`<img class="preview" src="${it.photo}" alt=""><button type="button" class="secondary sm" data-a="rmph">Fotoğrafı kaldır</button>`:''}</div>`).join('');
+ $('items').innerHTML=items.map((it,i)=>`<div class="item" data-u="${it.uid}" style="--c:${CCOL[it.category]||'#64748b'}"><div class="ihead"><b>Ürün ${i+1}</b><button type="button" class="danger sm" data-a="rm">Ürünü sil</button></div><select data-a="cat">${CATS.map(c=>`<option${c===it.category?' selected':''}>${c}</option>`).join('')}</select><input type="text" data-a="name" class="iname" value="${esc(it.name||'')}" placeholder="Hangi ürün? Örn. Megane 4 sol far"><div class="qty"><button type="button" data-a="dec" aria-label="Azalt">−</button><span>${it.qty}</span><button type="button" data-a="inc" aria-label="Artır">+</button><small>adet</small></div><label class="photo">📷 ${it.photo?'Fotoğrafı değiştir':'Fotoğraf ekle'}<input type="file" accept="image/*" capture="environment" hidden data-a="ph"></label>${it.photo?`<img class="preview" src="${it.photo}" alt=""><button type="button" class="secondary sm" data-a="rmph">Fotoğrafı kaldır</button>`:''}</div>`).join('');
 }
 function openForm(o){
  editingId=o?o.id:null;

@@ -1,8 +1,10 @@
 package com.siparistakip.app
 
 import android.app.Activity
+import android.content.ContentValues
 import android.content.Intent
 import android.net.Uri
+import android.provider.MediaStore
 import android.os.Bundle
 import android.webkit.JavascriptInterface
 import android.webkit.ValueCallback
@@ -17,6 +19,7 @@ class MainActivity : Activity() {
     private lateinit var webView: WebView
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
     private val filePickerRequest = 4102
+    private var cameraUri: Uri? = null
 
     inner class AndroidShareBridge {
         @JavascriptInterface
@@ -67,15 +70,40 @@ class MainActivity : Activity() {
                 filePathCallback?.onReceiveValue(null)
                 filePathCallback = callback
                 return try {
-                    startActivityForResult(params.createIntent(), filePickerRequest)
+                    if (params.isCaptureEnabled) {
+                        cameraUri = createCameraUri()
+                        val cameraIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
+                            putExtra(MediaStore.EXTRA_OUTPUT, cameraUri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                        }
+                        startActivityForResult(cameraIntent, filePickerRequest)
+                    } else {
+                        cameraUri = null
+                        startActivityForResult(params.createIntent(), filePickerRequest)
+                    }
                     true
                 } catch (_: Exception) {
-                    filePathCallback = null
-                    false
+                    cameraUri = null
+                    try {
+                        startActivityForResult(params.createIntent(), filePickerRequest)
+                        true
+                    } catch (_: Exception) {
+                        filePathCallback = null
+                        false
+                    }
                 }
             }
         }
         webView.loadUrl("https://appassets.androidplatform.net/assets/index.html")
+    }
+
+    private fun createCameraUri(): Uri {
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, "siparis_${System.currentTimeMillis()}.jpg")
+            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+        }
+        return contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            ?: throw IllegalStateException("Kamera fotoğrafı için dosya oluşturulamadı")
     }
 
     @Deprecated("Deprecated")
@@ -87,10 +115,13 @@ class MainActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == filePickerRequest) {
-            val result = if (resultCode == Activity.RESULT_OK)
-                WebChromeClient.FileChooserParams.parseResult(resultCode, data) else null
+            val result = if (resultCode == Activity.RESULT_OK) {
+                cameraUri?.let { arrayOf(it) }
+                    ?: WebChromeClient.FileChooserParams.parseResult(resultCode, data)
+            } else null
             filePathCallback?.onReceiveValue(result)
             filePathCallback = null
+            cameraUri = null
         }
     }
 
